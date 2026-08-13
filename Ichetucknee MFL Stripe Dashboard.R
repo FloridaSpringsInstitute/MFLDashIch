@@ -83,5 +83,6 @@ p <- plot_ly(
     ),
     margin = list(l = 150, r = 40, t =60, b = 60)
     )
-p
-saveWidget(p, "ichetucknee_legal_minimum_flow.html", selfcontained = T)
+
+dir.create("docs", showWarnings = F)
+saveWidget(p, "docs/ichetucknee_legal_minimum_flow.html", selfcontained = T)
