@@ -15,9 +15,16 @@ data <- read_waterdata_daily(
          Qualifier = qualifier) %>%
   select(Date, `Flow (cfs)`, Qualifier)
 
-# ---- Establish Threshold ----
-threshold <- 346 #The legal MFL, the 50th percentile of flow MUST exceed this to be in compliance
+# ---- Threshold Establishment Dates ----
+mfl_established_date <- as.Date("2015-01-01") #Approximate, need official date when available
+mfl_2021_change_date <- as.Date("2021-01-01") #Approximate, need official date when available
 
+threshold <- case_when(
+  data$Date < mfl_established_date ~ NA_real_,
+  data$Date < mfl_2021_change_date ~ 343,
+  TRUE ~ 346
+)
+pre_mfl <- is.na(threshold)
 # ---- Calculating percent difference from legal min flow each day ----
 pct <- ((data$`Flow (cfs)` - threshold) / threshold * 100)
 
@@ -51,7 +58,10 @@ hover_text <- sprintf(
 vik_colors <- scico(11, palette = "vik", direction = -1)
 vik_colorscale <- Map(function(pos, col) list(pos, col),
                       seq(0, 1, length.out = 11), vik_colors)
-
+# ---- Calculating number of days legal minimum has been met since original MFL ----
+ n_total <- sum(!pre_mfl & !is.na(data$`Flow (cfs)`))
+n_met <- sum(data$`Flow (cfs)` >= threshold & !pre_mfl, na.rm =T)
+pct_met <- round(100 * n_met / n_total, 1)
 #---- Plot generation ----
 
 p <- plot_ly(
@@ -63,7 +73,7 @@ p <- plot_ly(
   colorscale = vik_colorscale,
   zmid = 0, zmin = -75, zmax = 75,
   colorbar = list(
-    title = "Flow vs. Legal Minimum",
+    title = "<b>Flow vs. Legal Minimum",
     tickvals = c(-50, -30, -10, 0, 10, 30, 50),
     tickmode = "array",
     ticktext = c("Substantially Below", "Moderately Below", "Marginally Below",
@@ -72,7 +82,10 @@ p <- plot_ly(
   )
 ) %>%
   layout(
-    title = "Ichetucknee River - Flow Relative to the Legal Minimum Flow<br><sup>Daily discharge compared to the established legal minimum (346 cfs)",
+    title = list(
+      text = "<b>Ichetucknee River - Flow Relative to the Legal Minimum Flow</b><br><sup>Daily discharge compared to the established legal minimum (343 cfs 2015-2021; 346 cfs 2021-present)",
+      x = 0.05,
+      xanchor = "left"),
     xaxis = list(title = "Date"),
     yaxis = list(
       title = "",
@@ -81,8 +94,32 @@ p <- plot_ly(
       zeroline = F,
       ticks = ""
     ),
-    margin = list(l = 150, r = 40, t =60, b = 60)
+    margin = list(l = 40, r = 40, t = 80, b = 100),
+    annotations = list(
+      text = sprintf("<b>Legal minimum met on %s of %s days (%s%%) since establishment of first minimum.",
+                     format(n_met, big.mark = ","), format(n_total, big.mark = ","), pct_met),
+      xref = "paper",
+      yref = "paper",
+      x = 0.5,
+      y = -0.20,
+      showarrow = F,
+      xanchor = "center",
+      font = list(size = 15, color = "black")
     )
+    )
+
+p<- p %>%
+  add_annotations(
+    text = "Data: USGS-02322700",
+    xref = "paper",
+    yref = "paper",
+    x = 1.2,
+    y = -0.2,
+    showarrow = F,
+    xanchor = "right",
+    font = list(size = 10, color = "black")
+  )
+    
 
 dir.create("docs", showWarnings = F)
 saveWidget(p, "docs/ichetucknee_legal_minimum_flow.html", selfcontained = T)
